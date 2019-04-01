@@ -1,0 +1,11 @@
+##############################
+## Folders                  ##
+##############################
+state_dict
+log
+ 
+##############################
+## Netbeans conf            ##
+##############################
+200_restaurant_embedding_matrix.dat
+restaurant_tokenizer.dat
