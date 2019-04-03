@@ -52,7 +52,7 @@ class AOA(nn.Module):
     def forward(self, inputs):
         text_raw_indices = inputs[0] # batch_size x seq_len
         aspect_indices = inputs[1] # batch_size x seq_len
-        ctx_len = torch.sum(text_raw_indices != 0, dim=1)
+        ctx_len = torch.sum(text_raw_indices != 0, dim=1) # != 0 ?
         asp_len = torch.sum(aspect_indices != 0, dim=1)
         ctx = self.embed(text_raw_indices) # batch_size x seq_len x embed_dim
         asp = self.embed(aspect_indices) # batch_size x seq_len x embed_dim
@@ -66,4 +66,13 @@ class AOA(nn.Module):
         weighted_sum = torch.matmul(torch.transpose(ctx_out, 1, 2), gamma).squeeze(-1) # batch_size x 2*hidden_dim
         out = self.dense(weighted_sum) # batch_size x polarity_dim
 
-        return out
+    return out
+
+class Attention_Encoder(nn.Module):
+
+    def __init__(self, embedding_matrix, opt):
+        super(Attention_Encoder, self).__init__()
+        self.opt = opt
+        self.embed = nn.Embedding.from_pretrained(torch.tensor(embedding_matrix, dtype=torch.float))
+        self.attention = Attention(opt.embed_dim, opt.hidden_dim, opt.out_dim, opt.n_head=1, score_function='dot_product')
+        
