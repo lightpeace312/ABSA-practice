@@ -32,7 +32,7 @@ class CrossEntropyLoss_LSR(nn.Module):
         else:
             return torch.sum(loss)
 
-            
+
 class test(nn.Module):
     def __init__(self, embedding_matrix, opt):
         super(AEN, self).__init__()
@@ -40,10 +40,18 @@ class test(nn.Module):
         self.embed = nn.Embedding.from_pretrained(torch.tensor(embedding_matrix, dtype=torch.float))
         self.squeeze_embedding = SqueezeEmbedding()
 
-        self.attn_k = Attention(opt.embed_dim, out_dim=opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
-        self.attn_q = Attention(opt.embed_dim, out_dim=opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
-        self.ffn_c = PositionwiseFeedForward(opt.hidden_dim, dropout=opt.dropout)
-        self.ffn_t = PositionwiseFeedForward(opt.hidden_dim, dropout=opt.dropout)
+        self.attn1_k = Attention(opt.embed_dim, out_dim=opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
+        self.attn1_q = Attention(opt.embed_dim, out_dim=opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
+        self.proj1 = nn.Linear(n_head * hidden_dim, out_dim)
+
+        self.attn2_k = Attention(opt.embed_dim, out_dim=opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
+        self.attn2_q = Attention(opt.embed_dim, out_dim=opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
+        self.proj1 = nn.Linear(n_head * hidden_dim, out_dim)
+        
+
+
+        # self.ffn_c = PositionwiseFeedForward(opt.hidden_dim, dropout=opt.dropout)
+        # self.ffn_t = PositionwiseFeedForward(opt.hidden_dim, dropout=opt.dropout)
 
         self.attn_s1 = Attention(opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
 
