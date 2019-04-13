@@ -63,6 +63,7 @@ def build_embedding_matrix(word2idx, embed_dim, em_fname, ev_fpath):
     return embedding_matrix
 
 
+
 def pad_and_truncate(sequence, maxlen, dtype='int64', padding='post', truncating='post', value=0):
     x = (np.ones(maxlen) * value).astype(dtype)
     if truncating == 'pre':
@@ -94,11 +95,16 @@ class Tokenizer(object):
                 self.word2idx[word] = self.idx
                 self.idx2word[self.idx] = word
                 self.idx += 1
-
-    def text_to_sequence(self, text, reverse=False, padding='post', truncating='post'):
+    def get_ctx_words(self, text):
         if self.lower:
             text = text.lower()
-        words = text.split()
+        return text.replace('$t$','').split()
+    def text_to_words(self, text):
+        if self.lower:
+            text = text.lower()
+        return text.split()
+    def text_to_sequence(self, text, reverse=False, padding='post', truncating='post'):
+        words = self.text_to_words(text)
         unknownidx = len(self.word2idx)+1
         sequence = [self.word2idx[w] if w in self.word2idx else unknownidx for w in words]
         if len(sequence) == 0:

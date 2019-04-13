@@ -43,24 +43,25 @@ def _load_word_vec(path, word2idx=None):
     return word_vec
 
 
-def build_embedding_matrix(word2idx, embed_dim, dat_fname):
-    if os.path.exists(dat_fname):
-        print('loading embedding_matrix:', dat_fname)
-        embedding_matrix = pickle.load(open(dat_fname, 'rb'))
+def build_embedding_matrix(word2idx, embed_dim, em_fname, ev_fpath):
+    if os.path.exists(em_fname):
+        print('loading embedding_matrix:', em_fname)
+        embedding_matrix = pickle.load(open(em_fname, 'rb'))
     else:
         print('loading word vectors...')
         embedding_matrix = np.zeros((len(word2idx) + 2, embed_dim))  # idx 0 and len(word2idx)+1 are all-zeros
-        fname = './glove.twitter.27B/glove.twitter.27B.' + str(embed_dim) + 'd.txt' \
+        fname = ev_fpath+'/glove.twitter.27B.' + str(embed_dim) + 'd.txt' \
             if embed_dim != 300 else './glove.42B.300d.txt'
         word_vec = _load_word_vec(fname, word2idx=word2idx)
-        print('building embedding_matrix:', dat_fname)
+        print('building embedding_matrix:', em_fname)
         for word, i in word2idx.items():
             vec = word_vec.get(word)
             if vec is not None:
                 # words not found in embedding index will be all-zeros.
                 embedding_matrix[i] = vec
-        pickle.dump(embedding_matrix, open(dat_fname, 'wb'))
+        pickle.dump(embedding_matrix, open(em_fname, 'wb'))
     return embedding_matrix
+
 
 
 def pad_and_truncate(sequence, maxlen, dtype='int64', padding='post', truncating='post', value=0):
@@ -94,11 +95,16 @@ class Tokenizer(object):
                 self.word2idx[word] = self.idx
                 self.idx2word[self.idx] = word
                 self.idx += 1
-
-    def text_to_sequence(self, text, reverse=False, padding='post', truncating='post'):
+    def get_ctx_words(self, text):
         if self.lower:
             text = text.lower()
-        words = text.split()
+        return text.replace('$t$','').split()
+    def text_to_words(self, text):
+        if self.lower:
+            text = text.lower()
+        return text.split()
+    def text_to_sequence(self, text, reverse=False, padding='post', truncating='post'):
+        words = self.text_to_words(text)
         unknownidx = len(self.word2idx)+1
         sequence = [self.word2idx[w] if w in self.word2idx else unknownidx for w in words]
         if len(sequence) == 0:
