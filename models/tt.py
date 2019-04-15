@@ -52,6 +52,14 @@ class TargetedTransformer(nn.Module):
             n_head=8,
             score_function='dot_product',
             dropout=opt.dropout)
+        
+        self.attn_text2 = Attention(
+            opt.hidden_dim,
+            out_dim=opt.hidden_dim,
+            n_head=8,
+            score_function='dot_product',
+            dropout=opt.dropout)
+
 
         self.attn_aspect = Attention(
             opt.embed_dim,
@@ -61,6 +69,10 @@ class TargetedTransformer(nn.Module):
             dropout=opt.dropout)
         
         self.ffn_c = PositionwiseFeedForward(
+            opt.hidden_dim, 
+            dropout=opt.dropout)
+        
+        self.ffn_c2 = PositionwiseFeedForward(
             opt.hidden_dim, 
             dropout=opt.dropout)
 
@@ -74,8 +86,15 @@ class TargetedTransformer(nn.Module):
             score_function='dot_product',
             dropout=opt.dropout)
         
-        self.lstm =  DynamicLSTM(opt.hidden_dim, opt.hidden_dim, num_layers=1, batch_first=True)
-        
+        self.lstm =  DynamicLSTM(
+            opt.hidden_dim,
+            opt.hidden_dim,
+            num_layers=1,
+            only_use_last_hidden_state=True,
+            batch_first=True)
+#         self.lstm = nn.LSTM(
+#                 opt.hidden_dim, opt.hidden_dim, num_layers=1,
+#                 bias=True, batch_first=True, dropout=opt.dropout, bidirectional=False)
         self.dense = nn.Linear(opt.hidden_dim, opt.polarities_dim)
 
     def forward(self, inputs):
@@ -89,7 +108,9 @@ class TargetedTransformer(nn.Module):
 
         hc, _ = self.attn_text(context, context)
         hc = self.ffn_c(hc)
-        ht, _ = self.attn_aspect(context, target)
+        hc, _ = self.attn_text2(hc, hc)
+        hc = self.ffn_c2(hc)
+        ht, _ = self.attn_aspect(target, target)
         ht = self.ffn_t(ht)
 
         s1, _ = self.attn_s1(hc, ht) #(?,300,t)
@@ -101,11 +122,11 @@ class TargetedTransformer(nn.Module):
             target_len, dtype=torch.float).to(self.opt.device)
 
         
-#         s1_mean = torch.div(
-#             torch.sum(s1, dim=1), context_len.view(context_len.size(0), 1))
-        x, (_, _)= self.lstm(s1, target_len)
+        s1_mean = torch.div(
+            torch.sum(s1, dim=1), context_len.view(context_len.size(0), 1))
+#         x = self.lstm(s1, target_len)
        
-        out = self.dense(x)
+        out = self.dense(s1_mean)
         return out
 
 

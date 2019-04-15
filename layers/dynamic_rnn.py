@@ -76,7 +76,7 @@ class DynamicLSTM(nn.Module):
         ht = torch.transpose(ht, 0, 1)
 
         if self.only_use_last_hidden_state:
-            return ht
+            return ht[0]
         else:
             """unpack: out"""
             out = torch.nn.utils.rnn.pad_packed_sequence(out_pack, batch_first=self.batch_first)  # (sequence, lengths)
