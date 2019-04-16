@@ -5,13 +5,31 @@
 
 from layers.dynamic_rnn import DynamicLSTM
 from layers.squeeze_embedding import SqueezeEmbedding
-from layers.attention import Attention, NoQueryAttention
+from layers.attention import Attention, NoQueryAttention, BearAttention
 from layers.point_wise_feed_forward import PositionwiseFeedForward
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
+    ''' Sinusoid position encoding table '''
 
+    def cal_angle(position, hid_idx):
+        return position / np.power(10000, 2 * (hid_idx // 2) / d_hid)
+
+    def get_posi_angle_vec(position):
+        return [cal_angle(position, hid_j) for hid_j in range(d_hid)]
+
+    sinusoid_table = np.array([get_posi_angle_vec(pos_i) for pos_i in range(n_position)])
+
+    sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
+    sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
+
+    if padding_idx is not None:
+        # zero vector for padding dimension
+        sinusoid_table[padding_idx] = 0.
+
+    return torch.FloatTensor(sinusoid_table)
 # CrossEntropyLoss for Label Smoothing Regularization
 class CrossEntropyLoss_LSR(nn.Module):
     def __init__(self, device, para_LSR=0.2):
@@ -45,7 +63,16 @@ class TargetedTransformer(nn.Module):
         self.embed = nn.Embedding.from_pretrained(
             torch.tensor(embedding_matrix, dtype=torch.float))
         self.squeeze_embedding = SqueezeEmbedding()
-
+        
+#         self.position_enc = nn.Embedding.from_pretrained(
+#             get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=0),
+#             freeze=True)
+#         self.attn_text = BearAttention(
+#             opt.embed_dim,
+#             out_dim=opt.hidden_dim,
+#             n_head=8,
+#             score_function='dot_product',
+#             dropout=opt.dropout)
         self.attn_text = Attention(
             opt.embed_dim,
             out_dim=opt.hidden_dim,
@@ -60,13 +87,20 @@ class TargetedTransformer(nn.Module):
             score_function='dot_product',
             dropout=opt.dropout)
 
-
+    
         self.attn_aspect = Attention(
             opt.embed_dim,
             out_dim=opt.hidden_dim,
             n_head=8,
             score_function='dot_product',
             dropout=opt.dropout)
+        
+#         self.attn_aspect2 = BearAttention(
+#             opt.hidden_dim,
+#             out_dim=opt.hidden_dim,
+#             n_head=8,
+#             score_function='dot_product',
+#             dropout=opt.dropout)
         
         self.ffn_c = PositionwiseFeedForward(
             opt.hidden_dim, 
@@ -79,19 +113,25 @@ class TargetedTransformer(nn.Module):
         self.ffn_t = PositionwiseFeedForward(
             opt.hidden_dim, 
             dropout=opt.dropout)
-
+        
+#         self.ffn_t2 = PositionwiseFeedForward(
+#             opt.hidden_dim, 
+#             dropout=opt.dropout)
+        
         self.attn_s1 = Attention(
             opt.hidden_dim,
             n_head=8,
             score_function='dot_product',
             dropout=opt.dropout)
-        
-        self.lstm =  DynamicLSTM(
-            opt.hidden_dim,
-            opt.hidden_dim,
-            num_layers=1,
-            only_use_last_hidden_state=True,
-            batch_first=True)
+#         self.layer_norm1 = nn.LayerNorm(opt.hidden_dim)
+#         self.layer_norm2 = nn.LayerNorm(opt.hidden_dim)
+
+#         self.lstm =  DynamicLSTM(
+#             opt.hidden_dim,
+#             opt.hidden_dim,
+#             num_layers=1,
+#             only_use_last_hidden_state=True,
+#             batch_first=True)
 #         self.lstm = nn.LSTM(
 #                 opt.hidden_dim, opt.hidden_dim, num_layers=1,
 #                 bias=True, batch_first=True, dropout=opt.dropout, bidirectional=False)
@@ -103,16 +143,25 @@ class TargetedTransformer(nn.Module):
         target_len = torch.sum(target_indices != 0, dim=-1)
         context = self.embed(text_raw_indices)
         context = self.squeeze_embedding(context, context_len)
+#         enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
         target = self.embed(target_indices)
         target = self.squeeze_embedding(target, target_len)
-
+        
+#         resdual1 = context
         hc, _ = self.attn_text(context, context)
+        print(hc.size())
         hc = self.ffn_c(hc)
+#         hc  = self.layer_norm1(hc)
+#         resdual2 = hc
         hc, _ = self.attn_text2(hc, hc)
         hc = self.ffn_c2(hc)
+#         hc  = self.layer_norm1(hc+resdual2)
         ht, _ = self.attn_aspect(target, target)
         ht = self.ffn_t(ht)
-
+        
+#         ht, _ = self.attn_aspect2(ht, ht)
+#         ht = self.ffn_t2(ht)
+        
         s1, _ = self.attn_s1(hc, ht) #(?,300,t)
 
         context_len = torch.tensor(
