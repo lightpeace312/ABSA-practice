@@ -164,13 +164,13 @@ class Attention(nn.Module):
             raise RuntimeError('invalid score_function')
         score = F.softmax(score, dim=-1)
         output = torch.bmm(score, kx)  # (n_head*?, q_len, hidden_dim)
-        print('output.size1',output.size())
+        # print('output.size1',output.size())
 
         output = torch.cat(torch.split(output, mb_size, dim=0), dim=-1)  # (?, q_len, n_head*hidden_dim)
-        print('output.size2',output.size())
+        # print('output.size2',output.size())
 
         output = self.proj(output)  # (?, q_len, out_dim)
-        print('output.size3',output.size())
+        # print('output.size3',output.size())
 
         output = self.dropout(output)
         return output, score
@@ -350,10 +350,10 @@ class BearAttention(nn.Module):
         output = torch.bmm(score, kx)  # (n_head*?, q_len, hidden_dim)
         # output = torch.bmm(score, kx).view(-1,q_len*self.n_head,self.hidden_dim)  # (n_head*?, q_len, hidden_dim)
 
-        # output = torch.cat(torch.split(output, mb_size, dim=0), dim=-1)  # (?, q_len, n_head*hidden_dim)
+        output = torch.cat(torch.split(output, mb_size, dim=0), dim=-1).view(-1,q_len*self.n_head, self.hidden_dim)  # (?, q_len, n_head*hidden_dim)
         # output = self.proj(output)  # (?, q_len, out_dim)
-        print('output.size1',output.size())
+       
         output = self.dropout(output)
-        print('output.size2',output.size())
+        
 
         return output, score
