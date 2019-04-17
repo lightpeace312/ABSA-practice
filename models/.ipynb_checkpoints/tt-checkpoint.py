@@ -63,15 +63,15 @@ class TargetedTransformer(nn.Module):
         self.embed = nn.Embedding.from_pretrained(
             torch.tensor(embedding_matrix, dtype=torch.float))
         self.squeeze_embedding = SqueezeEmbedding()
-        self.att_dim = 32
+        
 #         self.position_enc = nn.Embedding.from_pretrained(
 #             get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=0),
 #             freeze=True)
         self.attn_text = BearAttention(
             opt.embed_dim,
-            hidden_dim=self.att_dim,
+            hidden_dim=opt.att_dim,
             out_dim=opt.hidden_dim,
-            n_head=4,
+            n_head=opt.heads,
             score_function='dot_product',
             dropout=opt.dropout)
 #         self.attn_text = Attention(
@@ -82,32 +82,32 @@ class TargetedTransformer(nn.Module):
 #             dropout=opt.dropout)
         
         self.attn_text2 = Attention(
-            self.att_dim,
-            hidden_dim = self.att_dim,
+            opt.att_dim,
+            hidden_dim = opt.att_dim,
             out_dim=opt.hidden_dim,
-            n_head=4,
+            n_head=opt.heads,
             score_function='dot_product',
             dropout=opt.dropout)
 
     
         self.attn_aspect = BearAttention(
             opt.embed_dim,
-            hidden_dim = self.att_dim,
+            hidden_dim = opt.att_dim,
             out_dim=opt.hidden_dim,
-            n_head=4,
+            n_head=opt.heads,
             score_function='dot_product',
             dropout=opt.dropout)
         
         self.attn_aspect2 = Attention(
-            self.att_dim,
-            hidden_dim = self.att_dim,
+            opt.att_dim,
+            hidden_dim = opt.att_dim,
             out_dim=opt.hidden_dim,
-            n_head=4,
+            n_head=opt.heads,
             score_function='dot_product',
             dropout=opt.dropout)
         
         self.ffn_c = PositionwiseFeedForward(
-            self.att_dim, 
+            opt.att_dim, 
             dropout=opt.dropout)
         
         self.ffn_c2 = PositionwiseFeedForward(
@@ -115,7 +115,7 @@ class TargetedTransformer(nn.Module):
             dropout=opt.dropout)
 
         self.ffn_t = PositionwiseFeedForward(
-            self.att_dim, 
+            opt.att_dim, 
             dropout=opt.dropout)
         
         self.ffn_t2 = PositionwiseFeedForward(
@@ -124,7 +124,7 @@ class TargetedTransformer(nn.Module):
         
         self.attn_s1 = Attention(
             opt.hidden_dim,
-            n_head=4,
+            n_head=opt.heads,
             score_function='dot_product',
             dropout=opt.dropout)
 #         self.layer_norm1 = nn.LayerNorm(opt.hidden_dim)
