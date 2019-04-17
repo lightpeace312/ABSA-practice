@@ -294,6 +294,7 @@ class BearAttention(nn.Module):
         self.score_function = score_function
         self.w_k = nn.Linear(embed_dim, n_head * hidden_dim)
         self.w_q = nn.Linear(embed_dim, n_head * hidden_dim)
+        self.w_v = nn.Linear(embed_dim, n_head * hidden_dim)
         self.proj = nn.Linear(n_head * hidden_dim, out_dim)
         self.dropout = nn.Dropout(dropout)
         if score_function == 'mlp':
@@ -327,6 +328,9 @@ class BearAttention(nn.Module):
         kx = kx.permute(2, 0, 1, 3).contiguous().view(-1, k_len, self.hidden_dim)
         qx = self.w_q(q).view(mb_size, q_len, self.n_head, self.hidden_dim)
         qx = qx.permute(2, 0, 1, 3).contiguous().view(-1, q_len, self.hidden_dim)
+        vx = self.w_v(k).view(mb_size, k_len, self.n_head, self.hidden_dim)
+        vx = vx.permute(2, 0, 1, 3).contiguous().view(-1, k_len, self.hidden_dim)
+        
         if self.score_function == 'dot_product':
             kt = kx.permute(0, 2, 1)
             score = torch.bmm(qx, kt)
@@ -347,7 +351,7 @@ class BearAttention(nn.Module):
         else:
             raise RuntimeError('invalid score_function')
         score = F.softmax(score, dim=-1)
-        output = torch.bmm(score, kx)  # (n_head*?, q_len, hidden_dim)
+        output = torch.bmm(score, vx)  # (n_head*?, q_len, hidden_dim)
         # output = torch.bmm(score, kx).view(-1,q_len*self.n_head,self.hidden_dim)  # (n_head*?, q_len, hidden_dim)
 
         output = torch.cat(torch.split(output, mb_size, dim=0), dim=-1).view(-1,q_len*self.n_head, self.hidden_dim)  # (?, q_len, n_head*hidden_dim)
