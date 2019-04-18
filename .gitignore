@@ -9,3 +9,4 @@ log
 ##############################
 200_restaurant_embedding_matrix.dat
 restaurant_tokenizer.dat
+glove.42B.300d.txt
