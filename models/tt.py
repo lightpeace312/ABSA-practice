@@ -5,8 +5,9 @@
 
 from layers.dynamic_rnn import DynamicLSTM
 from layers.squeeze_embedding import SqueezeEmbedding
-from layers.attention import Attention, NoQueryAttention, BearAttention
+from layers.attention import Attention, NoQueryAttention, BearAttention, PandaAttention
 from layers.point_wise_feed_forward import PositionwiseFeedForward
+from layers.attention_rnn import AttentionRNN
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -178,54 +179,87 @@ class TargetedTransformer(nn.Module):
         s1_mean = torch.div(
             torch.sum(s1, dim=1), context_len.view(context_len.size(0), 1))
 #         x = self.lstm(s1, target_len)
-       
+
+        self.ffn_c = PositionwiseFeedForward(
+            opt.l1_att_dim, 
+            dropout=opt.dropout)
+            
         out = self.dense(s1_mean)
         return out
 
-
-class AEN_BERT(nn.Module):
-    def __init__(self, bert, opt):
-        super(AEN_BERT, self).__init__()
+class FlightlessBird(nn.Module):
+    def __init__(self, embedding_matrix, opt):
+        super(FlightlessBird, self).__init__()
         self.opt = opt
-        self.bert = bert
+        self.embed = nn.Embedding.from_pretrained(
+            torch.tensor(embedding_matrix, dtype=torch.float))
         self.squeeze_embedding = SqueezeEmbedding()
-        self.dropout = nn.Dropout(opt.dropout)
+        
+#         self.position_enc = nn.Embedding.from_pretrained(
+#             get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=0),
+#             freeze=True)
+        self.panda = PandaAttention(opt.embed_dim,hidden_dim=opt.l1_att_dim,
+#           out_dim=opt.hidden_dim,
+            n_head=opt.l1_heads,
+            score_function='dot_product',
+            dropout=opt.dropout)
+#      
+        self.attn_rnn = AttentionRNN(opt.n_heads,opt.embed_dim,opt.hidden_dim,
+            opt.attention_hidden_dim,
+            opt.output_dim,
+            return_sequence=True
+        )
+        
+        self.attn_aspect = Attention(opt.l1_att_dim,hidden_dim = opt.l2_att_dim,
+            out_dim=opt.hidden_dim,
+            n_head=opt.l2_heads,
+            score_function='mlp',
+            dropout=opt.dropout)
+        
+        # self.attn_s1 = Attention(opt.hidden_dim,n_head=opt.l3_heads,
+        #     score_function='dot_product',
+        #     dropout=opt.dropout)
 
-        self.attn_k = Attention(opt.bert_dim, out_dim=opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
-        self.attn_q = Attention(opt.bert_dim, out_dim=opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
-        self.ffn_c = PositionwiseFeedForward(opt.hidden_dim, dropout=opt.dropout)
-        self.ffn_t = PositionwiseFeedForward(opt.hidden_dim, dropout=opt.dropout)
 
-        self.attn_s1 = Attention(opt.hidden_dim, n_head=8, score_function='mlp', dropout=opt.dropout)
-
-        self.dense = nn.Linear(opt.hidden_dim*3, opt.polarities_dim)
+        self.dense = nn.Linear(opt.hidden_dim, opt.polarities_dim)
 
     def forward(self, inputs):
-        context, target = inputs[0], inputs[1]
-        context_len = torch.sum(context != 0, dim=-1)
-        target_len = torch.sum(target != 0, dim=-1)
+        text_raw_indices, target_indices = inputs[0], inputs[1]
+        context_len = torch.sum(text_raw_indices != 0, dim=-1)
+        target_len = torch.sum(target_indices != 0, dim=-1)
+        context = self.embed(text_raw_indices)
         context = self.squeeze_embedding(context, context_len)
-        context, _ = self.bert(context, output_all_encoded_layers=False)
-        context = self.dropout(context)
+#         enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
+        target = self.embed(target_indices)
         target = self.squeeze_embedding(target, target_len)
-        target, _ = self.bert(target, output_all_encoded_layers=False)
-        target = self.dropout(target)
-
-        hc, _ = self.attn_k(context, context)
+        
+#         resdual1 = context
+        hc, _ = self.panda(context, context)
+#         print(hc.size())
         hc = self.ffn_c(hc)
-        ht, _ = self.attn_q(context, target)
+#         hc  = self.layer_norm1(hc)
+#         resdual2 = hc
+        hc, _ = self.attn_text2(hc, hc)
+        hc = self.ffn_c2(hc)
+#         hc  = self.layer_norm1(hc+resdual2)
+        ht, _ = self.attn_aspect(target, target)
         ht = self.ffn_t(ht)
+        
+        ht, _ = self.attn_aspect2(ht, ht)
+        ht = self.ffn_t2(ht)
+        
+        s1, _ = self.attn_s1(hc, ht) #(?,300,t)
 
-        s1, _ = self.attn_s1(hc, ht)
+        context_len = torch.tensor(
+            context_len, dtype=torch.float).to(self.opt.device)
+            
+        target_len = torch.tensor(
+            target_len, dtype=torch.float).to(self.opt.device)
 
-        context_len = torch.tensor(context_len, dtype=torch.float).to(self.opt.device)
-        target_len = torch.tensor(target_len, dtype=torch.float).to(self.opt.device)
-
-        hc_mean = torch.div(torch.sum(hc, dim=1), context_len.view(context_len.size(0), 1))
-        ht_mean = torch.div(torch.sum(ht, dim=1), target_len.view(target_len.size(0), 1))
-        s1_mean = torch.div(torch.sum(s1, dim=1), context_len.view(context_len.size(0), 1))
-
-        x = torch.cat((hc_mean, s1_mean, ht_mean), dim=-1)
-        out = self.dense(x)
+        
+        s1_mean = torch.div(
+            torch.sum(s1, dim=1), context_len.view(context_len.size(0), 1))
+#         x = self.lstm(s1, target_len)
+       
+        out = self.dense(s1_mean)
         return out
-

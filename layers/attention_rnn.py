@@ -40,8 +40,8 @@ class AttentionRNNCell(nn.Module):
 class AttentionRNN(nn.Module):
 #这里自己实现一个RNN.
    #input_size就是char_vacab_size=26,hidden_size随意，就是隐层神经元数，output_size要分成categories类
-    def __init__(self, n_heads, input_dim, hidden_dim, attention_hidden_dim, output_dim):
-        super(attn_out, self).__init__()
+    def __init__(self, n_heads, input_dim, hidden_dim, attention_hidden_dim, output_dim, return_sequence = False):
+        super(AttentionRNN, self).__init__()
 
         cell = AttentionRNNCell(n_heads = n_heads,
                                 input_dim = input_dim,
@@ -49,15 +49,21 @@ class AttentionRNN(nn.Module):
                                 hidden_dim = hidden_dim,
                                 output_dim = output_dim)
 
-    def forward(self, input, hidden):
-        combined = torch.cat((input, hidden), 1)#input:[N,26]+[N,hidden_size]=N,26+hidden_size -> N*hidden_size
-        hidden = self.i2h(combined) #N*hidden_size，这里计算了一个hidden，hidden会带来下一个combined里
-        output = self.i2o(combined) # N*output_size,就是一个普通全连接层
-        output = self.softmax(output)#softmax
-        return output, hidden
+    def forward(self, inputs, hidden):
+        bs, seq_len, _ = inputs.size()
+        hidden = torch.zeros(self.hidden_dim).to(inputs.device)
+        output_seq = []
+        for i in range(seq_len):
+            output, hidden = self.cell(inputs[:, i, :],hidden)
+            output_seq.append(output.unsqueeze(bs))
+        
+        if self.return_sequence:
+            return output_seq, output, hidden
+        else:
+            return output, hidden
 
-    def initHidden(self):
-        return Variable(torch.zeros(1, self.hidden_size))#hidden=[1,hidden_size]
+    # def initHidden(self):
+    #     return Variable(torch.zeros(1, self.hidden_size))#hidden=[1,hidden_size]
 
 n_hidden = 128
 target_size = 10#分类问题，分成几类
