@@ -137,3 +137,27 @@ AEN_BERT_opt = Namespace(
     inputs_cols = input_colses['aen_bert'],
     dataset_file = dataset_files['restaurant']
 )
+
+Gundam_opt = Namespace(
+    model_name="aen_bert",
+    dataset='restaurant',#twitter,laptop
+    seed=1234,
+    optimizer = 'adam',
+    initializer = 'xavier_uniform_',
+    log_step = 5,
+    logdir = 'log',
+    embed_dim = 200,
+    hidden_dim = 300,
+    max_seq_len = 80,
+    polarities_dim = 3,
+    hops = 3,
+    device = None,
+    learning_rate = 0.001,
+    batch_size = 128,
+    l2reg = 0.00001,
+    num_epoch = 20,
+    dropout = 0,
+    inputs_cols = input_colses['aen_bert'],
+    dataset_file = dataset_files['restaurant']
+)
+    

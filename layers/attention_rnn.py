@@ -7,7 +7,7 @@ from layers.point_wise_feed_forward import PositionwiseFeedForward
 class AttentionRNNCell(nn.Module):
     #这里自己实现一个RNN.
    #input_size就是char_vacab_size=26,hidden_size随意，就是隐层神经元数，output_size要分成categories类
-    def __init__(self, n_heads, input_dim, attention_hidden_dim, hidden_dim, output_dim, inner_heads = 1, dropout = 0.1):
+    def __init__(self, n_heads, input_dim, attention_hidden_dim, hidden_dim, output_dim, inner_heads = 1, score_function='mlp', dropout = 0.1):
         super(AttentionRNNCell, self).__init__()
 
         self.hidden_dim = hidden_dim
@@ -16,7 +16,7 @@ class AttentionRNNCell(nn.Module):
                         activation_dim = hidden_dim, 
                         out_dim = attention_hidden_dim, 
                         n_heads=inner_heads,
-                        score_function='mlp', 
+                        score_function=score_function, 
                         dropout=0.1)
                         
         self.pw_ffn = PositionwiseFeedForward(input_dim + attention_hidden_dim, d_inner_hid = hidden_dim, dropout = dropout)
@@ -38,16 +38,17 @@ class AttentionRNNCell(nn.Module):
 
 
 class AttentionRNN(nn.Module):
-#这里自己实现一个RNN.
+    #这里自己实现一个RNN.
    #input_size就是char_vacab_size=26,hidden_size随意，就是隐层神经元数，output_size要分成categories类
-    def __init__(self, n_heads, input_dim, hidden_dim, attention_hidden_dim, output_dim, return_sequence = False):
+    def __init__(self, n_heads, input_dim, hidden_dim, attention_hidden_dim, output_dim, score_function = 'mlp',return_sequence = False):
         super(AttentionRNN, self).__init__()
 
         cell = AttentionRNNCell(n_heads = n_heads,
                                 input_dim = input_dim,
                                 attention_hidden_dim = attention_hidden_dim,
                                 hidden_dim = hidden_dim,
-                                output_dim = output_dim)
+                                output_dim = output_dim,
+                                score_function = score_function)
 
     def forward(self, inputs, hidden):
         bs, seq_len, _ = inputs.size()
@@ -58,7 +59,7 @@ class AttentionRNN(nn.Module):
             output_seq.append(output.unsqueeze(bs))
         
         if self.return_sequence:
-            return output_seq, output, hidden
+            return output_seq, hidden
         else:
             return output, hidden
 

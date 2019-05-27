@@ -440,7 +440,7 @@ class BearAttention(nn.Module):
         output = torch.bmm(score, vx)  # (n_head*?, q_len, hidden_dim)
         # output = torch.bmm(score, kx).view(-1,q_len*self.n_head,self.hidden_dim)  # (n_head*?, q_len, hidden_dim)
 
-        output = torch.cat(torch.split(output, mb_size, dim=0), dim=-1).view(-1,q_len*self.n_head, self.hidden_dim)  # (?, q_len, n_head*hidden_dim)
+        output = torch.cat(torch.split(output, mb_size, dim=0), dim=-1).view(-1,q_len*self.n_head, self.hidden_dim)  # (?, q_len * n_head, hidden_dim)
         # output = self.proj(output)  # (?, q_len, out_dim)
        
         output = self.dropout(output)

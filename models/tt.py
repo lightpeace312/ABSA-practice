@@ -187,9 +187,9 @@ class TargetedTransformer(nn.Module):
         out = self.dense(s1_mean)
         return out
 
-class FlightlessBird(nn.Module):
+class Gundam(nn.Module):
     def __init__(self, embedding_matrix, opt):
-        super(FlightlessBird, self).__init__()
+        super(Gundam, self).__init__()
         self.opt = opt
         self.embed = nn.Embedding.from_pretrained(
             torch.tensor(embedding_matrix, dtype=torch.float))
@@ -198,21 +198,22 @@ class FlightlessBird(nn.Module):
 #         self.position_enc = nn.Embedding.from_pretrained(
 #             get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=0),
 #             freeze=True)
-        self.panda = PandaAttention(opt.embed_dim,hidden_dim=opt.l1_att_dim,
+        self.bear = BearAttention(opt.embed_dim,hidden_dim=opt.bear_dim,
 #           out_dim=opt.hidden_dim,
-            n_head=opt.l1_heads,
+            n_head=opt.bear_head,
             score_function='dot_product',
             dropout=opt.dropout)
 #      
-        self.attn_rnn = AttentionRNN(opt.n_heads,opt.embed_dim,opt.hidden_dim,
-            opt.attention_hidden_dim,
-            opt.output_dim,
+        self.attn_rnn = AttentionRNN(opt.bear_head, opt.bear_dim, opt.rnn_hidden_dim,
+            opt.rnn_attention_hidden_dim,
+            opt.rnn_attention_out_dim,
+            score_function = 'mlp',
             return_sequence=True
         )
         
-        self.attn_aspect = Attention(opt.l1_att_dim,hidden_dim = opt.l2_att_dim,
-            out_dim=opt.hidden_dim,
-            n_head=opt.l2_heads,
+        self.attn_aspect = Attention(opt.rnn_attention_out_dim,hidden_dim = 128,
+            out_dim=opt.out_dim,
+            n_head=1,
             score_function='mlp',
             dropout=opt.dropout)
         
@@ -234,21 +235,15 @@ class FlightlessBird(nn.Module):
         target = self.squeeze_embedding(target, target_len)
         
 #         resdual1 = context
-        hc, _ = self.panda(context, context)
+        hc, _ = self.bear(context, context)
 #         print(hc.size())
         hc = self.ffn_c(hc)
 #         hc  = self.layer_norm1(hc)
 #         resdual2 = hc
-        hc, _ = self.attn_text2(hc, hc)
-        hc = self.ffn_c2(hc)
-#         hc  = self.layer_norm1(hc+resdual2)
-        ht, _ = self.attn_aspect(target, target)
-        ht = self.ffn_t(ht)
-        
-        ht, _ = self.attn_aspect2(ht, ht)
-        ht = self.ffn_t2(ht)
-        
-        s1, _ = self.attn_s1(hc, ht) #(?,300,t)
+        hc = hc.view(-1, context_len, self.n_head, self.hidden_dim)
+        hc, _ = self.attn_rnn(hc)
+#         hc  = self.layer_norm1(hc+resdual2)   
+        s1, _ = self.attn_aspect(hc, target) #(?,300,t)
 
         context_len = torch.tensor(
             context_len, dtype=torch.float).to(self.opt.device)
