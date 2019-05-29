@@ -139,7 +139,7 @@ AEN_BERT_opt = Namespace(
 )
 
 Gundam_opt = Namespace(
-    model_name="aen_bert",
+    model_name="gundam",
     dataset='restaurant',#twitter,laptop
     seed=1234,
     optimizer = 'adam',
@@ -160,4 +160,32 @@ Gundam_opt = Namespace(
     inputs_cols = input_colses['aen_bert'],
     dataset_file = dataset_files['restaurant']
 )
-    
+
+# opt = Namespace(
+#     model_name="ba_pool_32att_32att_128hd_2h_4h_300d",
+#     dataset='restaurant',#twitter,laptop
+#     seed=312,
+#     optimizer = 'adam',
+#     initializer = 'xavier_uniform_',
+#     log_step = 5,
+#     logdir = 'log',
+#     embed_dim = 300,
+#     hidden_dim = 128,
+#     max_seq_len = 80,
+#     polarities_dim = 3,
+#     hops = 3,
+#     device = None,
+#     learning_rate = 0.002,
+#     batch_size = 128,
+#     l2reg = 0.0001,#0.00001
+#     num_epoch = 25,
+#     dropout = 0.1,
+#     inputs_cols = input_colses['tt'],
+#     dataset_file = dataset_files['restaurant'],
+#     n_warmup_steps = 4000,
+#     l1_att_dim = 32,
+#     l2_att_dim = 16,
+#     l1_heads = 4,
+#     l2_heads = 4,
+#     l3_heads = 4
+# )

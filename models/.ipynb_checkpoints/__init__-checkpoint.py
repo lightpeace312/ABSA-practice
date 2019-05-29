@@ -6,4 +6,4 @@
 from models.atae_lstm import ATAE_LSTM
 from models.aen import CrossEntropyLoss_LSR, AEN, AEN_BERT
 from models.aoa import AOA
-from models.tt import TargetedTransformer
+from models.tt import TargetedTransformer, Gundam

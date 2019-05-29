@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "/Users/andromedae/anaconda/envs/pytorch/bin/python",
+    "python.pythonPath": "D:\\ProgramData\\Anaconda3\\envs\\pytorch\\python.exe",
     "python.linting.pylintEnabled": true,
     "python.linting.enabled": true,
     "python.linting.pep8Enabled": false,

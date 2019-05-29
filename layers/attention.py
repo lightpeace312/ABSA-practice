@@ -176,7 +176,7 @@ class Attention(nn.Module):
         return output, score
 
 class ARAttention(nn.Module):
-    def __init__(self, embed_dim, activation_dim, hidden_dim=None, out_dim=None, n_heads=1, score_function='dot_product', dropout=0):
+    def __init__(self, embed_dim, activation_dim, hidden_dim=None, out_dim=None, n_head=1, score_function='dot_product', dropout=0):
         ''' Attention Mechanism
         :param embed_dim:
         :param hidden_dim:
@@ -185,7 +185,7 @@ class ARAttention(nn.Module):
         :param score_function: scaled_dot_product / mlp (concat) / bi_linear (general dot)
         :return (?, q_len, out_dim,)
         '''
-        super(Attention, self).__init__()
+        super(ARAttention, self).__init__()
         if hidden_dim is None:
             hidden_dim = embed_dim // n_head
         if out_dim is None:
@@ -219,6 +219,8 @@ class ARAttention(nn.Module):
         mb_size = k.shape[0]  # ?
         k_len = k.shape[1]
         q_len = q.shape[1]
+
+    
         # k: (?, k_len, embed_dim,)
         # q: (?, q_len, embed_dim,)
         # kx: (n_head*?, k_len, hidden_dim)

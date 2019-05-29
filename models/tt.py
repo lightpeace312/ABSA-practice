@@ -203,7 +203,9 @@ class Gundam(nn.Module):
             n_head=opt.bear_head,
             score_function='dot_product',
             dropout=opt.dropout)
-#      
+
+        self.ffn_c = PositionwiseFeedForward(opt.bear_dim, dropout=opt.dropout)
+
         self.attn_rnn = AttentionRNN(opt.bear_head, opt.bear_dim, opt.rnn_hidden_dim,
             opt.rnn_attention_hidden_dim,
             opt.rnn_attention_out_dim,
@@ -211,28 +213,20 @@ class Gundam(nn.Module):
             return_sequence=True
         )
         
-        self.attn_aspect = Attention(opt.rnn_attention_out_dim,hidden_dim = 128,
-            out_dim=opt.out_dim,
-            n_head=1,
-            score_function='mlp',
-            dropout=opt.dropout)
-        
-        # self.attn_s1 = Attention(opt.hidden_dim,n_head=opt.l3_heads,
-        #     score_function='dot_product',
-        #     dropout=opt.dropout)
 
-
-        self.dense = nn.Linear(opt.hidden_dim, opt.polarities_dim)
+        self.dense = nn.Linear(opt.rnn_attention_out_dim, opt.polarities_dim)
 
     def forward(self, inputs):
         text_raw_indices, target_indices = inputs[0], inputs[1]
         context_len = torch.sum(text_raw_indices != 0, dim=-1)
         target_len = torch.sum(target_indices != 0, dim=-1)
+        seq_len = text_raw_indices.shape[1]
+        bs = text_raw_indices.shape[0]
         context = self.embed(text_raw_indices)
-        context = self.squeeze_embedding(context, context_len)
+        # context = self.squeeze_embedding(context, context_len)
 #         enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
         target = self.embed(target_indices)
-        target = self.squeeze_embedding(target, target_len)
+        # target = self.squeeze_embedding(target, target_len)
         
 #         resdual1 = context
         hc, _ = self.bear(context, context)
@@ -240,16 +234,17 @@ class Gundam(nn.Module):
         hc = self.ffn_c(hc)
 #         hc  = self.layer_norm1(hc)
 #         resdual2 = hc
-        hc = hc.view(-1, context_len, self.n_head, self.hidden_dim)
+        # context_len = torch.tensor(context_len, dtype=torch.float).to(self.opt.device)
+  
+        hc = hc.view(-1, seq_len, self.opt.bear_head, self.opt.bear_dim)
         hc, _ = self.attn_rnn(hc)
 #         hc  = self.layer_norm1(hc+resdual2)   
         s1, _ = self.attn_aspect(hc, target) #(?,300,t)
 
-        context_len = torch.tensor(
-            context_len, dtype=torch.float).to(self.opt.device)
+        
             
-        target_len = torch.tensor(
-            target_len, dtype=torch.float).to(self.opt.device)
+        # target_len = torch.tensor(
+        #     target_len, dtype=torch.float).to(self.opt.device)
 
         
         s1_mean = torch.div(
