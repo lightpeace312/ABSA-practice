@@ -5,7 +5,7 @@
 
 from layers.dynamic_rnn import DynamicLSTM
 from layers.squeeze_embedding import SqueezeEmbedding
-from layers.attention import Attention, NoQueryAttention, BearAttention, PandaAttention
+from layers.attention import Attention, NoQueryAttention, BearAttention, PandaAttention,GirlAttention
 from layers.point_wise_feed_forward import PositionwiseFeedForward
 from layers.attention_rnn import AttentionRNN
 import torch
@@ -55,6 +55,85 @@ class CrossEntropyLoss_LSR(nn.Module):
             return torch.mean(loss)
         else:
             return torch.sum(loss)
+
+class Gundam(nn.Module):
+    def __init__(self, embedding_matrix, opt):
+        super(Gundam, self).__init__()
+        self.opt = opt
+        self.embed = nn.Embedding.from_pretrained(
+            torch.tensor(embedding_matrix, dtype=torch.float),freeze = opt.freeze_embedding)
+        # self.squeeze_embedding = SqueezeEmbedding()
+        
+#         self.position_enc = nn.Embedding.from_pretrained(
+#             get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=0),
+#             freeze=True)
+        self.bear = BearAttention(opt.embed_dim,hidden_dim=opt.bear_dim,
+            out_dim=opt.bear_dim,
+            n_head=opt.bear_head,
+            score_function='dot_product',
+            dropout=opt.dropout)
+
+        self.ffn_c = PositionwiseFeedForward(opt.bear_dim, dropout=opt.dropout)
+
+        self.attn_rnn = AttentionRNN(opt.bear_head, opt.bear_dim, opt.rnn_hidden_dim,
+            opt.rnn_attention_hidden_dim,
+            opt.rnn_attention_out_dim,
+            score_function = 'mlp',
+            return_sequence=True
+        )
+        
+        self.attn_aspect = GirlAttention(
+            k_dim = opt.rnn_attention_out_dim,
+            q_dim = opt.embed_dim,
+            hidden_dim = 128,
+            out_dim=opt.out_dense_dim,
+            n_head=1,
+            score_function='mlp',
+            dropout=opt.dropout)
+
+        self.dense = nn.Linear(opt.rnn_attention_out_dim, opt.polarities_dim)
+
+    def forward(self, inputs):
+        text_raw_indices, target_indices = inputs[0], inputs[1]
+        context_len = torch.sum(text_raw_indices != 0, dim=-1)
+        target_len = torch.sum(target_indices != 0, dim=-1)
+        seq_len = text_raw_indices.shape[1]
+        bs = text_raw_indices.shape[0]
+        context = self.embed(text_raw_indices)
+        # context = self.squeeze_embedding(context, context_len)
+#         enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
+        target = self.embed(target_indices)
+        # target = self.squeeze_embedding(target, target_len)
+        
+#         resdual1 = context
+        hc, _ = self.bear(context, context)
+#         print(hc.size())
+        hc = self.ffn_c(hc)
+#         hc  = self.layer_norm1(hc)
+#         resdual2 = hc
+        # context_len = torch.tensor(context_len, dtype=torch.float).to(self.opt.device)
+        context_len = torch.tensor(context_len, dtype=torch.float).to(self.opt.device)
+        hc = hc.contiguous().view(-1, seq_len, self.opt.bear_head, self.opt.bear_dim)
+        hc, _ = self.attn_rnn(hc)
+#         hc  = self.layer_norm1(hc+resdual2)   
+        # print('target.shape:',target.shape)
+        s1, _ = self.attn_aspect(hc, target) #(?,300,t)
+
+        
+
+        # target_len = torch.tensor(
+        #     target_len, dtype=torch.float).to(self.opt.device)
+
+        # print('s1.shape',s1.shape)
+        # print(torch.sum(s1, dim=1).type(), context_len.view(context_len.size(0), 1).type())
+        s1_mean = torch.div(
+            torch.sum(s1, dim=1), context_len.view(context_len.size(0), 1))
+        # print('s1_mean.shape',s1_mean.shape)
+
+#         x = self.lstm(s1, target_len)
+        
+        out = self.dense(s1_mean)
+        return out
 
 
 class TargetedTransformer(nn.Module):
@@ -184,72 +263,5 @@ class TargetedTransformer(nn.Module):
             opt.l1_att_dim, 
             dropout=opt.dropout)
             
-        out = self.dense(s1_mean)
-        return out
-
-class Gundam(nn.Module):
-    def __init__(self, embedding_matrix, opt):
-        super(Gundam, self).__init__()
-        self.opt = opt
-        self.embed = nn.Embedding.from_pretrained(
-            torch.tensor(embedding_matrix, dtype=torch.float))
-        self.squeeze_embedding = SqueezeEmbedding()
-        
-#         self.position_enc = nn.Embedding.from_pretrained(
-#             get_sinusoid_encoding_table(n_position, d_word_vec, padding_idx=0),
-#             freeze=True)
-        self.bear = BearAttention(opt.embed_dim,hidden_dim=opt.bear_dim,
-#           out_dim=opt.hidden_dim,
-            n_head=opt.bear_head,
-            score_function='dot_product',
-            dropout=opt.dropout)
-
-        self.ffn_c = PositionwiseFeedForward(opt.bear_dim, dropout=opt.dropout)
-
-        self.attn_rnn = AttentionRNN(opt.bear_head, opt.bear_dim, opt.rnn_hidden_dim,
-            opt.rnn_attention_hidden_dim,
-            opt.rnn_attention_out_dim,
-            score_function = 'mlp',
-            return_sequence=True
-        )
-        
-
-        self.dense = nn.Linear(opt.rnn_attention_out_dim, opt.polarities_dim)
-
-    def forward(self, inputs):
-        text_raw_indices, target_indices = inputs[0], inputs[1]
-        context_len = torch.sum(text_raw_indices != 0, dim=-1)
-        target_len = torch.sum(target_indices != 0, dim=-1)
-        seq_len = text_raw_indices.shape[1]
-        bs = text_raw_indices.shape[0]
-        context = self.embed(text_raw_indices)
-        # context = self.squeeze_embedding(context, context_len)
-#         enc_output = self.src_word_emb(src_seq) + self.position_enc(src_pos)
-        target = self.embed(target_indices)
-        # target = self.squeeze_embedding(target, target_len)
-        
-#         resdual1 = context
-        hc, _ = self.bear(context, context)
-#         print(hc.size())
-        hc = self.ffn_c(hc)
-#         hc  = self.layer_norm1(hc)
-#         resdual2 = hc
-        # context_len = torch.tensor(context_len, dtype=torch.float).to(self.opt.device)
-  
-        hc = hc.view(-1, seq_len, self.opt.bear_head, self.opt.bear_dim)
-        hc, _ = self.attn_rnn(hc)
-#         hc  = self.layer_norm1(hc+resdual2)   
-        s1, _ = self.attn_aspect(hc, target) #(?,300,t)
-
-        
-            
-        # target_len = torch.tensor(
-        #     target_len, dtype=torch.float).to(self.opt.device)
-
-        
-        s1_mean = torch.div(
-            torch.sum(s1, dim=1), context_len.view(context_len.size(0), 1))
-#         x = self.lstm(s1, target_len)
-       
         out = self.dense(s1_mean)
         return out
